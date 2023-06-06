@@ -1,0 +1,10 @@
+ersion: '3'
+services:
+  db:
+    image: 'docker.io/library/h2:latest'
+    ports:
+      - '1521:1521'
+    volumes:
+      - './data:/opt/h2-data'
+    environment:
+      - 'H2_OPTIONS=-ifNotExists -tcp -tcpAllowOthers -tcpPort 1521 -baseDir /opt/h2-data'
