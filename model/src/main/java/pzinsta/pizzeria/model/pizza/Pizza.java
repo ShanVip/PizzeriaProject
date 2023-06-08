@@ -112,4 +112,5 @@ public class Pizza implements Serializable {
 	public int hashCode() {
 		return Objects.hash(getCrust(), getSize(), getLeftPizzaSide(), getRightPizzaSide(), getBakeStyle(), getCutStyle());
 	}
+
 }

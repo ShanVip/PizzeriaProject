@@ -1,5 +1,11 @@
 package pzinsta.pizzeria.service.dto;
 
+import javassist.NotFoundException;
+import pzinsta.pizzeria.model.pizza.Ingredient;
+import pzinsta.pizzeria.model.pizza.PizzaItem;
+
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 
 public class PizzaOrderDTO {
@@ -11,6 +17,16 @@ public class PizzaOrderDTO {
     private Map<Long, Integer> leftSideIngredientIdByQuantity;
     private Map<Long, Integer> rightSideIngredientIdByQuantity;
     private int quantity;
+
+    private String trackingNumber;
+
+    public String getTrackingNumber() {
+        return trackingNumber;
+    }
+
+    public void setTrackingNumber(String trackingNumber) {
+        this.trackingNumber = trackingNumber;
+    }
 
     public Long getCrustId() {
         return crustId;
@@ -75,4 +91,5 @@ public class PizzaOrderDTO {
     public void setId(Long id) {
         this.id = id;
     }
+
 }

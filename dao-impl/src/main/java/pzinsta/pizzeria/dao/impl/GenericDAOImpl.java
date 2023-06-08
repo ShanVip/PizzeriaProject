@@ -24,7 +24,7 @@ public abstract class GenericDAOImpl<T, ID> implements GenericDAO<T, ID>{
     }
     
     @Override
-    public Optional<T> findById(ID id) {
+    public Optional<T> findById(Long id) {
         return Optional.ofNullable(entityManager.find(entityClass, id));
     }
     

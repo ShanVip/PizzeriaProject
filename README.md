@@ -26,3 +26,10 @@ Go to [http://localhost:8081/pizzeria/](http://localhost:8081/pizzeria/) to chec
 ```java-8-openjdk```
 
 ## Built With
+
+
+DTO used for JSON<br>
+REST Controller create method get/post<br>
+REst Controller return DTO Object<br>
+In...Service we create Transform method: Model -> DTO Model<br>
+in ...Service create method which find something and return Transformed object 

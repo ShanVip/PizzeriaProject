@@ -8,6 +8,7 @@ import javax.persistence.TypedQuery;
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Root;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -25,5 +26,16 @@ public class OrderDAOImpl extends GenericDAOImpl<Order, Long> implements OrderDA
         criteriaQuery.where(criteriaBuilder.equal(root.get("trackingNumber"), trackingNumber));
         TypedQuery<Order> typedQuery = entityManager.createQuery(criteriaQuery);
         return typedQuery.getResultList().stream().findFirst();
+    }
+
+    @Override
+    public List<Order> findByUserId(Long userId) {
+        CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Order> criteriaQuery = criteriaBuilder.createQuery(entityClass);
+        Root<Order> root = criteriaQuery.from(entityClass);
+        criteriaQuery.select(root);
+        criteriaQuery.where(criteriaBuilder.equal(root.get("customer").get("id"), userId));
+        TypedQuery<Order> typedQuery = entityManager.createQuery(criteriaQuery);
+        return typedQuery.getResultList();
     }
 }

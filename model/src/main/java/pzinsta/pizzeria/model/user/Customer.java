@@ -39,4 +39,5 @@ public class Customer extends User implements Serializable {
     public void setDeliveryAddresses(List<DeliveryAddress> deliveryAddresses) {
         this.deliveryAddresses = deliveryAddresses;
     }
+
 }

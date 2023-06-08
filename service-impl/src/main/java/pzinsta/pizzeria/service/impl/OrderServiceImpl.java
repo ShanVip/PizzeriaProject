@@ -1,5 +1,6 @@
 package pzinsta.pizzeria.service.impl;
 
+import com.amazonaws.services.kms.model.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -28,17 +29,14 @@ import pzinsta.pizzeria.model.pizza.PizzaItem;
 import pzinsta.pizzeria.model.pizza.PizzaSide;
 import pzinsta.pizzeria.model.pizza.PizzaSize;
 import pzinsta.pizzeria.service.OrderService;
+import pzinsta.pizzeria.service.dto.OrderDTO;
 import pzinsta.pizzeria.service.dto.PizzaOrderDTO;
 import pzinsta.pizzeria.service.dto.ReviewDTO;
-import pzinsta.pizzeria.service.dto.UserDTO;
 import pzinsta.pizzeria.service.exception.OrderNotFoundException;
 import pzinsta.pizzeria.service.impl.strategy.TrackingNumberGenerationStrategy;
 
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -65,6 +63,73 @@ public class OrderServiceImpl implements OrderService {
     private int maxQuantity;
 
     private TrackingNumberGenerationStrategy trackingNumberGenerationStrategy;
+
+    private static OrderDTO transformPizzaOrderToPizzaOrderDTO(Order order) {
+        List<PizzaOrderDTO> buffer = new ArrayList<>();
+        for (OrderItem oi :order.getOrderItems()){
+            PizzaOrderDTO pizzaOrderDTO = new PizzaOrderDTO();
+            pizzaOrderDTO.setId(oi.getId());
+            pizzaOrderDTO.setCrustId(oi.getPizza().getCrust().getId());
+            pizzaOrderDTO.setPizzaSizeId(oi.getPizza().getSize().getId());
+            pizzaOrderDTO.setBakeStyleId(oi.getPizza().getBakeStyle().getId());
+            pizzaOrderDTO.setCutStyleId(oi.getPizza().getCutStyle().getId());
+            pizzaOrderDTO.setQuantity(oi.getQuantity());
+            pizzaOrderDTO.setLeftSideIngredientIdByQuantity(getIngredientsByQuantityForTransform(oi.getPizza().getLeftPizzaSide()));
+            pizzaOrderDTO.setRightSideIngredientIdByQuantity(getIngredientsByQuantityForTransform(oi.getPizza().getRightPizzaSide()));
+            pizzaOrderDTO.setTrackingNumber(order.getTrackingNumber());
+
+
+            buffer.add(pizzaOrderDTO);
+
+        }
+
+        OrderDTO orderDTO = new OrderDTO();
+        orderDTO.setId(order.getId());
+        orderDTO.setPizzaOrderList(buffer);
+        return orderDTO;
+    }
+
+
+    @Transactional
+    public Optional<PizzaOrderDTO> updatePizzaOrderDTOByOrderItemId(Long orderItemId, PizzaOrderDTO updatedOrderDTO) {
+        return orderItemDAO.findById(orderItemId)
+                .map(orderItem -> {
+
+                    Pizza pizza = orderItem.getPizza();
+
+                    // Обновление свойств Crust
+                    Crust updatedCrust = crustDAO.findById(updatedOrderDTO.getCrustId())
+                            .orElseThrow(() -> new NotFoundException("Crust not found"));
+                    pizza.setCrust(updatedCrust);
+
+                    // Обновление свойств PizzaSize
+                    PizzaSize updatedSize = pizzaSizeDAO.findById(updatedOrderDTO.getPizzaSizeId())
+                            .orElseThrow(() -> new NotFoundException("PizzaSize not found"));
+                    pizza.setSize(updatedSize);
+
+                    // Обновление свойств BakeStyle
+                    BakeStyle updatedBakeStyle = bakeStyleDAO.findById(updatedOrderDTO.getBakeStyleId())
+                            .orElseThrow(() -> new NotFoundException("BakeStyle not found"));
+                    pizza.setBakeStyle(updatedBakeStyle);
+
+                    // Обновление свойств CutStyle
+                    CutStyle updatedCutStyle = cutStyleDAO.findById(updatedOrderDTO.getCutStyleId())
+                            .orElseThrow(() -> new NotFoundException("CutStyle not found"));
+                    pizza.setCutStyle(updatedCutStyle);
+
+                    Collection<PizzaItem> leftSideItems = mapToPizzaItems(updatedOrderDTO.getLeftSideIngredientIdByQuantity());
+                    Collection<PizzaItem> rightSideItems = mapToPizzaItems(updatedOrderDTO.getRightSideIngredientIdByQuantity());
+                    pizza.getLeftPizzaSide().setPizzaItems(leftSideItems);
+                    pizza.getRightPizzaSide().setPizzaItems(rightSideItems);
+
+
+                    // Сохранение изменений в базу данных
+                    orderItemDAO.saveOrUpdate(orderItem);
+
+                    // Создание и возврат обновленного PizzaOrderDTO
+                    return createPizzaOrderDTO(orderItem);
+                });
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -138,7 +203,7 @@ public class OrderServiceImpl implements OrderService {
     public Ingredient getIngredientById(Long ingredientId) {
         return ingredientDAO.findById(ingredientId).orElseThrow(RuntimeException::new);
     }
-
+    //Method Post
     @Override
     @Transactional
     public Order postOrder(Order order) {
@@ -152,10 +217,27 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
+    public void deleteOrder(String trackingNumber) {
+        Order order = orderDAO.findByTrackingNumber(trackingNumber).get();
+        if (order != null) {
+            orderDAO.delete(order);
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Order getOrderByTrackingNumber(String trackingNumber) {
         return orderDAO.findByTrackingNumber(trackingNumber).orElseThrow(OrderNotFoundException::new);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderDTO getOrderDTOByTrackingNumber(String trackingNumber) {
+        Order order = orderDAO.findByTrackingNumber(trackingNumber).orElseThrow(OrderNotFoundException::new);
+        return transformPizzaOrderToPizzaOrderDTO(order);
+    }
+
 
     @Override
     @Transactional
@@ -169,11 +251,14 @@ public class OrderServiceImpl implements OrderService {
         order.setReview(review);
     }
 
+    //Method
     @Override
     @Transactional(readOnly = true)
     public Optional<PizzaOrderDTO> getPizzaOrderDTOByOrderItemId(Long orderItemId) {
         return orderItemDAO.findById(orderItemId).map(this::createPizzaOrderDTO);
     }
+
+
 
     private PizzaOrderDTO createPizzaOrderDTO(OrderItem orderItem) {
         PizzaOrderDTO pizzaOrderDTO = new PizzaOrderDTO();
@@ -195,6 +280,11 @@ public class OrderServiceImpl implements OrderService {
     private Map<Long, Integer> getIngredientsByQuantity(PizzaSide pizzaSide) {
         return pizzaSide.getPizzaItems().stream().collect(Collectors.toMap(pizzaItem -> pizzaItem.getIngredient().getId(), PizzaItem::getQuantity));
     }
+
+    private static Map<Long, Integer> getIngredientsByQuantityForTransform(PizzaSide pizzaSide) {
+        return pizzaSide.getPizzaItems().stream().collect(Collectors.toMap(pizzaItem -> pizzaItem.getIngredient().getId(), PizzaItem::getQuantity));
+    }
+
 
     private OrderItem createOrderItem(PizzaOrderDTO pizzaOrderDTO) {
         OrderItem orderItem = new OrderItem();
@@ -354,4 +444,56 @@ public class OrderServiceImpl implements OrderService {
     public void setOrderItemDAO(OrderItemDAO orderItemDAO) {
         this.orderItemDAO = orderItemDAO;
     }
+
+    @Override
+    @Transactional
+    public void postOrderCreate(Order order, PizzaOrderDTO pizzaOrderDTO) {
+        OrderEvent orderEvent = new OrderEvent();
+        orderEvent.setOccurredOn(Instant.now());
+        orderEvent.setOrderEventType(OrderEventType.PURCHASED);
+        order.getOrderEvents().add(orderEvent);
+
+
+
+        order = orderDAO.saveOrUpdate(order);
+        Order finalOrder = order;
+        order.getOrderItems().forEach(orderItem -> orderItem.setOrder(finalOrder));
+
+        order.setTrackingNumber(trackingNumberGenerationStrategy.generatetrackingNumber(order));
+
+    }
+
+    private Collection<PizzaItem> mapToPizzaItems(Map<Long, Integer> ingredientIdByQuantity) {
+        Collection<PizzaItem> pizzaItems = new ArrayList<>();
+        for (Map.Entry<Long, Integer> entry : ingredientIdByQuantity.entrySet()) {
+            Long ingredientId = entry.getKey();
+            Integer quantity = entry.getValue();
+            Ingredient ingredient = ingredientDAO.findById(ingredientId)
+                    .orElseThrow(() -> new NotFoundException("Ingredient not found"));
+
+            PizzaItem pizzaItem = new PizzaItem();
+            pizzaItem.setIngredient(ingredient);
+            pizzaItem.setQuantity(quantity);
+
+            pizzaItems.add(pizzaItem);
+        }
+        return pizzaItems;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderDTO> getAllOrdersForUser(Long id) {
+        List<Order> orders = orderDAO.findByUserId(id);
+        List<OrderDTO> orderDTOs = new ArrayList<>();
+
+        for (Order order : orders) {
+            OrderDTO orderDTO = transformPizzaOrderToPizzaOrderDTO(order);
+            orderDTOs.add(orderDTO);
+        }
+
+        return orderDTOs;
+    }
+
+
+
 }

@@ -154,4 +154,5 @@ public class Order implements Serializable {
 	public void setOrderEvents(Collection<OrderEvent> orderEvents) {
 		this.orderEvents = orderEvents;
 	}
+
 }
